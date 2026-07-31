@@ -1,0 +1,20 @@
+{
+  "name": "Atelier Flow — Payment Reminders",
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Kolkata" },
+  "nodes": [
+    { "id": "schedule", "name": "Daily at 09:00", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, 0], "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 9 * * *" }] } } },
+    { "id": "payments", "name": "Fetch pending payments", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [250, 0], "parameters": { "url": "={{ $env.APP_API_URL + '/api/v1/payments?status=overdue&page_size=100' }}", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $env.APP_SERVICE_TOKEN }}" }] } } },
+    { "id": "split", "name": "Each payment", "type": "n8n-nodes-base.splitOut", "typeVersion": 1, "position": [500, 0], "parameters": { "fieldToSplitOut": "items" } },
+    { "id": "email", "name": "Professional reminder", "type": "n8n-nodes-base.emailSend", "typeVersion": 2.1, "position": [750, -60], "parameters": { "fromEmail": "accounts@atelierflow.example", "toEmail": "={{ $json.data.customer_email }}", "subject": "=Payment reminder — {{ $json.reference }}", "emailFormat": "text", "text": "=Hello {{ $json.data.customer_name }},\n\nThis is a gentle reminder that {{ $json.title }} for {{ $json.amount }} is due on {{ $json.due_date }}. Please disregard this note if payment has already been initiated.\n\nRegards,\nAtelier Flow Accounts" } },
+    { "id": "finance", "name": "Notify finance", "type": "n8n-nodes-base.emailSend", "typeVersion": 2.1, "position": [750, 60], "parameters": { "fromEmail": "automation@atelierflow.example", "toEmail": "={{ $env.FINANCE_EMAIL }}", "subject": "=Payment reminder sent: {{ $json.reference }}", "emailFormat": "text", "text": "=Reminder sent for {{ $json.title }}. Current reminder count: {{ $json.data.reminder_count || 0 }}." } },
+    { "id": "log", "name": "Log reminder", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1000, 0], "parameters": { "method": "POST", "url": "={{ $env.APP_API_URL + '/api/v1/webhooks/n8n' }}", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Idempotency-Key", "value": "=payment-{{ $json.id }}-{{ $now.toISODate() }}" }, { "name": "X-Webhook-Signature", "value": "={{ $env.APP_WEBHOOK_SIGNATURE }}" }] }, "sendBody": true, "contentType": "raw", "rawContentType": "application/json", "body": "={\"event_type\":\"payment.reminder.sent\",\"workflow\":\"payment-reminder\",\"entity_type\":\"payment\",\"entity_id\":\"{{ $json.id }}\",\"status\":\"completed\"}" } }
+  ],
+  "connections": {
+    "Daily at 09:00": { "main": [[{ "node": "Fetch pending payments", "type": "main", "index": 0 }]] },
+    "Fetch pending payments": { "main": [[{ "node": "Each payment", "type": "main", "index": 0 }]] },
+    "Each payment": { "main": [[{ "node": "Professional reminder", "type": "main", "index": 0 }, { "node": "Notify finance", "type": "main", "index": 0 }]] },
+    "Professional reminder": { "main": [[{ "node": "Log reminder", "type": "main", "index": 0 }]] }
+  }
+}
+

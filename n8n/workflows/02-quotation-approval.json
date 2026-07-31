@@ -1,0 +1,19 @@
+{
+  "name": "Atelier Flow — Quotation Approval",
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Kolkata" },
+  "nodes": [
+    { "id": "trigger", "name": "Approval webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [0, 0], "parameters": { "httpMethod": "POST", "path": "atelier-flow/quotation-approved", "responseMode": "onReceived" } },
+    { "id": "convert", "name": "Approve and create project", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [260, 0], "parameters": { "method": "POST", "url": "={{ $env.APP_API_URL + '/api/v1/quotations/' + $json.body.quotation_id + '/approve' }}", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $env.APP_SERVICE_TOKEN }}" }] } } },
+    { "id": "team", "name": "Notify delivery team", "type": "n8n-nodes-base.emailSend", "typeVersion": 2.1, "position": [520, -80], "parameters": { "fromEmail": "automation@atelierflow.example", "toEmail": "={{ $json.project_manager_email }}", "subject": "=New project created: {{ $json.name }}", "emailFormat": "text", "text": "=An approved quotation has been converted into {{ $json.code }}. Initial milestones and tasks are ready." } },
+    { "id": "customer", "name": "Confirm with customer", "type": "n8n-nodes-base.emailSend", "typeVersion": 2.1, "position": [520, 80], "parameters": { "fromEmail": "projects@atelierflow.example", "toEmail": "={{ $('Approval webhook').item.json.body.customer_email }}", "subject": "Your project is confirmed", "emailFormat": "text", "text": "=Thank you for approving the proposal. Your project workspace is now active and our delivery team will share the kick-off schedule." } },
+    { "id": "log", "name": "Log execution", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [780, 0], "parameters": { "method": "POST", "url": "={{ $env.APP_API_URL + '/api/v1/webhooks/n8n' }}", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Idempotency-Key", "value": "=quote-approval-{{ $execution.id }}" }, { "name": "X-Webhook-Signature", "value": "={{ $env.APP_WEBHOOK_SIGNATURE }}" }] }, "sendBody": true, "contentType": "raw", "rawContentType": "application/json", "body": "={\"event_type\":\"quotation.automation.completed\",\"workflow\":\"quotation-approved\",\"entity_type\":\"quotation\",\"entity_id\":\"{{ $('Approval webhook').item.json.body.quotation_id }}\",\"status\":\"completed\"}" } }
+  ],
+  "connections": {
+    "Approval webhook": { "main": [[{ "node": "Approve and create project", "type": "main", "index": 0 }]] },
+    "Approve and create project": { "main": [[{ "node": "Notify delivery team", "type": "main", "index": 0 }, { "node": "Confirm with customer", "type": "main", "index": 0 }]] },
+    "Notify delivery team": { "main": [[{ "node": "Log execution", "type": "main", "index": 0 }]] },
+    "Confirm with customer": { "main": [[{ "node": "Log execution", "type": "main", "index": 0 }]] }
+  }
+}
+

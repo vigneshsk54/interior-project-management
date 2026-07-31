@@ -1,0 +1,20 @@
+{
+  "name": "Atelier Flow — Task & Deadline Reminders",
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Kolkata" },
+  "nodes": [
+    { "id": "schedule", "name": "Every hour", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, 0], "parameters": { "rule": { "interval": [{ "field": "hours", "hoursInterval": 1 }] } } },
+    { "id": "tasks", "name": "Fetch due tasks", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [250, 0], "parameters": { "url": "={{ $env.APP_API_URL + '/api/v1/tasks?page_size=100' }}", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $env.APP_SERVICE_TOKEN }}" }] } } },
+    { "id": "filter", "name": "Due or overdue", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [500, 0], "parameters": { "jsCode": "const now = Date.now(); const nextDay = now + 86400000; return $json.items.filter(t => t.due_date && new Date(t.due_date).getTime() <= nextDay && t.status !== 'completed').map(t => ({json: {...t, overdue: new Date(t.due_date).getTime() < now}}));" } },
+    { "id": "notify", "name": "Send task reminder", "type": "n8n-nodes-base.emailSend", "typeVersion": 2.1, "position": [750, -60], "parameters": { "fromEmail": "automation@atelierflow.example", "toEmail": "={{ $json.assignee_email }}", "subject": "={{ $json.overdue ? 'Overdue task: ' : 'Due soon: ' }}{{ $json.title }}", "emailFormat": "text", "text": "=Task: {{ $json.title }}\nDue: {{ $json.due_date }}\nPriority: {{ $json.priority }}\n\nOpen Atelier Flow to update progress." } },
+    { "id": "escalate", "name": "Escalate critical overdue", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [750, 80], "parameters": { "conditions": { "combinator": "and", "conditions": [{ "leftValue": "={{ $json.overdue }}", "operator": { "type": "boolean", "operation": "true", "singleValue": true } }, { "leftValue": "={{ $json.priority }}", "rightValue": "critical", "operator": { "type": "string", "operation": "equals" } }] } } },
+    { "id": "log", "name": "Log reminder", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1000, 0], "parameters": { "method": "POST", "url": "={{ $env.APP_API_URL + '/api/v1/webhooks/n8n' }}", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Idempotency-Key", "value": "=task-{{ $json.id }}-{{ $now.toISODate() }}" }, { "name": "X-Webhook-Signature", "value": "={{ $env.APP_WEBHOOK_SIGNATURE }}" }] }, "sendBody": true, "contentType": "raw", "rawContentType": "application/json", "body": "={\"event_type\":\"task.reminder.sent\",\"workflow\":\"task-reminder\",\"entity_type\":\"task\",\"entity_id\":\"{{ $json.id }}\",\"status\":\"completed\"}" } }
+  ],
+  "connections": {
+    "Every hour": { "main": [[{ "node": "Fetch due tasks", "type": "main", "index": 0 }]] },
+    "Fetch due tasks": { "main": [[{ "node": "Due or overdue", "type": "main", "index": 0 }]] },
+    "Due or overdue": { "main": [[{ "node": "Send task reminder", "type": "main", "index": 0 }, { "node": "Escalate critical overdue", "type": "main", "index": 0 }]] },
+    "Send task reminder": { "main": [[{ "node": "Log reminder", "type": "main", "index": 0 }]] }
+  }
+}
+

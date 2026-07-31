@@ -1,0 +1,45 @@
+{
+  "name": "Atelier Flow — New Enquiry",
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Kolkata" },
+  "nodes": [
+    {
+      "id": "trigger", "name": "New enquiry webhook", "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2, "position": [0, 0],
+      "parameters": { "httpMethod": "POST", "path": "atelier-flow/new-enquiry", "responseMode": "onReceived" }
+    },
+    {
+      "id": "ack", "name": "Send acknowledgement", "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1, "position": [260, -120],
+      "parameters": { "fromEmail": "projects@atelierflow.example", "toEmail": "={{ $json.body.email }}", "subject": "We received your interior project enquiry", "emailFormat": "text", "text": "=Hello {{ $json.body.contact_name }},\n\nThank you for considering Atelier Flow. Our team has received your brief and will contact you shortly.\n\nWarm regards,\nAtelier Flow" }
+    },
+    {
+      "id": "notify", "name": "Notify sales manager", "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1, "position": [260, 0],
+      "parameters": { "fromEmail": "automation@atelierflow.example", "toEmail": "={{ $json.body.assignee_email }}", "subject": "=New enquiry: {{ $json.body.title }}", "emailFormat": "text", "text": "=A new enquiry {{ $json.body.reference }} has been assigned to you. Please make first contact within 24 hours." }
+    },
+    {
+      "id": "task", "name": "Create follow-up task", "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2, "position": [260, 120],
+      "parameters": { "method": "POST", "url": "={{ $env.APP_API_URL + '/api/v1/tasks' }}", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $env.APP_SERVICE_TOKEN }}" }] }, "sendBody": true, "contentType": "raw", "rawContentType": "application/json", "body": "={\"title\":\"Contact new enquiry — {{ $json.body.title }}\",\"enquiry_id\":\"{{ $json.body.id }}\",\"assignee_id\":\"{{ $json.body.assigned_to_id }}\",\"priority\":\"high\",\"due_date\":\"{{ $now.plus({days: 1}).toISODate() }}\"}" }
+    },
+    {
+      "id": "wait", "name": "Wait 24 hours", "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1, "position": [520, 120],
+      "parameters": { "amount": 24, "unit": "hours" }
+    },
+    {
+      "id": "callback", "name": "Log execution", "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2, "position": [760, 0],
+      "parameters": { "method": "POST", "url": "={{ $env.APP_API_URL + '/api/v1/webhooks/n8n' }}", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Idempotency-Key", "value": "=new-enquiry-{{ $execution.id }}" }, { "name": "X-Webhook-Signature", "value": "={{ $env.APP_WEBHOOK_SIGNATURE }}" }] }, "sendBody": true, "contentType": "raw", "rawContentType": "application/json", "body": "={\"event_type\":\"enquiry.automation.completed\",\"workflow\":\"new-enquiry\",\"entity_type\":\"enquiry\",\"entity_id\":\"{{ $('New enquiry webhook').item.json.body.id }}\",\"status\":\"completed\"}" }
+    }
+  ],
+  "connections": {
+    "New enquiry webhook": { "main": [[{ "node": "Send acknowledgement", "type": "main", "index": 0 }, { "node": "Notify sales manager", "type": "main", "index": 0 }, { "node": "Create follow-up task", "type": "main", "index": 0 }]] },
+    "Send acknowledgement": { "main": [[{ "node": "Log execution", "type": "main", "index": 0 }]] },
+    "Notify sales manager": { "main": [[{ "node": "Log execution", "type": "main", "index": 0 }]] },
+    "Create follow-up task": { "main": [[{ "node": "Wait 24 hours", "type": "main", "index": 0 }]] },
+    "Wait 24 hours": { "main": [[{ "node": "Log execution", "type": "main", "index": 0 }]] }
+  }
+}
+

@@ -1,0 +1,15 @@
+.env
+.DS_Store
+__pycache__/
+*.py[cod]
+*.db
+.mongodb-data/
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+node_modules/
+dist/
+coverage/
+uploads/*
+!uploads/.gitkeep

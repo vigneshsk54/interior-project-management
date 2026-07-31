@@ -1,0 +1,17 @@
+{
+  "name": "Atelier Flow — Design Approval Reminders",
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Kolkata" },
+  "nodes": [
+    { "id": "schedule", "name": "Weekdays at 10:00", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, 0], "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 10 * * 1-5" }] } } },
+    { "id": "approvals", "name": "Fetch pending approvals", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [260, 0], "parameters": { "url": "={{ $env.APP_API_URL + '/api/v1/designs/list' }}", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $env.APP_SERVICE_TOKEN }}" }] } } },
+    { "id": "filter", "name": "Pending only", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [520, 0], "parameters": { "jsCode": "return $input.all().filter(i => i.json.status === 'pending_approval');" } },
+    { "id": "email", "name": "Remind client", "type": "n8n-nodes-base.emailSend", "typeVersion": 2.1, "position": [780, 0], "parameters": { "fromEmail": "design@atelierflow.example", "toEmail": "={{ $json.client_email }}", "subject": "=Design awaiting your review — {{ $json.title }}", "emailFormat": "text", "text": "=A design for {{ $json.room }} is ready for your review in the Atelier Flow client portal. Your response will help us protect the delivery schedule." } }
+  ],
+  "connections": {
+    "Weekdays at 10:00": { "main": [[{ "node": "Fetch pending approvals", "type": "main", "index": 0 }]] },
+    "Fetch pending approvals": { "main": [[{ "node": "Pending only", "type": "main", "index": 0 }]] },
+    "Pending only": { "main": [[{ "node": "Remind client", "type": "main", "index": 0 }]] }
+  }
+}
+
