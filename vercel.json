@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm --prefix frontend ci",
+  "buildCommand": "npm --prefix frontend run build",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60,
+      "includeFiles": "backend/**",
+      "excludeFiles": "{.env*,.vercel/**,.venv/**,.github/**,frontend/**,backend/*.db,backend/tests/**,backend/build/**,backend/.*_cache/**,backend/*.egg-info/**,docs/**,n8n/**,nginx/**,scripts/**,docker-compose.yml,Makefile,README.md}"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index?__original_path=/api/$1"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

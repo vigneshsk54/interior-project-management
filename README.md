@@ -215,6 +215,36 @@ stack behind managed TLS, and use managed PostgreSQL with backups and point-in-t
 recovery. Set explicit CORS origins, rotate service tokens, configure SMTP credentials in
 n8n, and persist uploads in encrypted object storage for multi-instance deployments.
 
+### Vercel
+
+The root `vercel.json` deploys the React frontend and FastAPI backend as one Vercel
+project. Configure these variables in Vercel before deploying:
+
+```text
+APP_ENV=production
+SECRET_KEY=<at-least-32-random-bytes>
+DATABASE_URL=<hosted-postgresql-url>
+MONGODB_URL=<hosted-mongodb-url>
+MONGODB_DATABASE=atelier_flow
+CORS_ORIGINS=<production-vercel-or-custom-domain>
+INITIAL_ADMIN_EMAIL=<administrator-email>
+INITIAL_ADMIN_PASSWORD=<at-least-12-characters>
+```
+
+Run the relational migrations, credential migration, and administrator bootstrap once
+against the hosted databases before using the production deployment:
+
+```bash
+cd backend
+alembic upgrade head
+python -m app.migrate_credentials
+python -m app.bootstrap_admin
+```
+
+Vercel Functions have only temporary writable storage. The application uses `/tmp` on
+Vercel so requests can complete, but uploaded files must be moved to Vercel Blob or
+another durable object store before relying on document persistence in production.
+
 The included Compose file is production-shaped but uses local volumes and development
 credentials by default; it is intended for local evaluation and as a deployment
 reference.

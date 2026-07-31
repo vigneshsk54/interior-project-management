@@ -1724,7 +1724,7 @@ async def upload_document(
     if len(content) > settings.max_upload_bytes:
         raise HTTPException(413, "File is too large")
     safe_name = f"{uuid.uuid4()}-{Path(file.filename or 'upload').name}"
-    upload_dir = Path(settings.upload_dir)
+    upload_dir = Path(settings.runtime_upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
     path = upload_dir / safe_name
     path.write_bytes(content)
